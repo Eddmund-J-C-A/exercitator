@@ -18,6 +18,12 @@ a.app{display:block;background:var(--card);border:1px solid var(--line);border-r
 a.app:hover,a.app:focus-visible{border-color:var(--acc);transform:translateY(-1px);outline:none}
 a.app b{display:block;font-size:1.15rem;color:var(--acc);margin-bottom:2px}
 a.app span{color:var(--mut);font-size:.95rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:28px}
+.card h2{font-size:1.05rem;margin:0 0 4px}.mut{color:var(--mut);font-size:.9rem}
+label{display:block;font-size:.85rem;color:var(--mut);margin:10px 0 4px}
+input[type=text],input[type=password]{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+button{padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--ink);font:inherit;cursor:pointer;margin:12px 8px 0 0}
+button.pri{background:var(--acc);color:var(--bg);border-color:var(--acc)}
 .foot{color:var(--mut);font-size:.85rem;text-align:center;margin-top:24px}
 </style>
 </head>
@@ -41,7 +47,46 @@ a.app span{color:var(--mut);font-size:.95rem}
   <span>Languages and general quizzes together, so you can mix chapters from both in one quiz.</span>
 </a>
 
+<div class="card" id="conn"></div>
 <p class="foot">Each notebook keeps its own data and syncs separately.</p>
 </main>
+<script>
+(function(){
+var K='study-gh',P='study-pp',box=document.getElementById('conn');
+function b64(u){var s='',a=new Uint8Array(u);for(var i=0;i<a.length;i+=8192)s+=String.fromCharCode.apply(null,a.subarray(i,i+8192));return btoa(s)}
+function ub64(t){return Uint8Array.from(atob(t),function(c){return c.charCodeAt(0)})}
+async function dkey(pass,salt){var k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:250000,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function enc(key,txt){var iv=crypto.getRandomValues(new Uint8Array(12));var ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,new TextEncoder().encode(txt));return{iv:b64(iv),ct:b64(ct)}}
+async function dec(key,o){return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:ub64(o.iv)},key,ub64(o.ct)))}
+function cfg(){try{return JSON.parse(localStorage.getItem(K)||'null')}catch(e){return null}}
+function pp(){try{return sessionStorage.getItem(P)||localStorage.getItem(P)}catch(e){return null}}
+function say(t){var m=document.getElementById('cm');if(m)m.textContent=t}
+function keep(p){try{sessionStorage.setItem(P,p);if(document.getElementById('rem')&&document.getElementById('rem').checked)localStorage.setItem(P,p);else localStorage.removeItem(P)}catch(e){}}
+async function connect(){var repo=document.getElementById('repo').value.trim(),tok=document.getElementById('tok').value.trim(),pass=document.getElementById('pass').value;
+ if(!/^[\w.-]+\/[\w.-]+$/.test(repo)){say('Enter the repository as owner/name.');return}if(!tok){say('Paste your GitHub token.');return}if(pass.length<8){say('Use a passphrase of at least 8 characters.');return}
+ try{say('Checking…');var r=await fetch('https://api.github.com/repos/'+repo,{cache:'no-store',headers:{Authorization:'Bearer '+tok,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});
+  if(r.status==401||r.status==403)throw new Error('GitHub refused the token. It needs Contents read and write on this repository and must not be expired');
+  if(r.status==404)throw new Error('GitHub cannot find that repository, or the token cannot see it');if(!r.ok)throw new Error('GitHub error '+r.status);
+  if((await r.json()).private===false)throw new Error('That repository is public. Please use a private one');
+  var salt=crypto.getRandomValues(new Uint8Array(16));var key=await dkey(pass,salt);
+  localStorage.setItem(K,JSON.stringify({repo:repo,salt:b64(salt),tokEnc:await enc(key,tok)}));keep(pass);draw('Connected. Open a notebook and it will sync automatically.')}
+ catch(e){say('Could not connect: '+(e.message||'error'))}}
+async function unlock(){var c=cfg(),pass=document.getElementById('pass').value;if(!pass){say('Enter your passphrase.');return}
+ try{await dec(await dkey(pass,ub64(c.salt)),c.tokEnc);keep(pass);draw('Unlocked. Open a notebook and it will sync automatically.')}catch(e){say('Wrong passphrase.')}}
+function forget(){try{localStorage.removeItem(K);localStorage.removeItem(P);sessionStorage.removeItem(P)}catch(e){}draw('Forgotten on this device. Your encrypted files stay in your repository.')}
+function lock(){try{localStorage.removeItem(P);sessionStorage.removeItem(P)}catch(e){}draw('Locked.')}
+function mk(t,a,k){var e=document.createElement(t);for(var x in a)e.setAttribute(x,a[x]);(k||[]).forEach(function(c){e.appendChild(typeof c==='string'?document.createTextNode(c):c)});return e}
+function field(l,id,type){return[mk('label',{for:id},[l]),mk('input',{id:id,type:type,autocomplete:'off'})]}
+function btn(t,f,pri){var b=mk('button',{class:pri?'pri':''},[t]);b.addEventListener('click',f);return b}
+function draw(m){box.innerHTML='';var c=cfg();box.appendChild(mk('h2',{},['Sync connection (one setup for all notebooks)']));
+ if(!c){box.appendChild(mk('p',{class:'mut'},['Enter these once here and every notebook on this site uses them. Your data is encrypted in the browser before it is sent to your private GitHub repository.']));
+  field('Private repository (owner/name)','repo','text').concat(field('Access token','tok','password'),field('Sync passphrase (at least 8 characters, cannot be recovered)','pass','password')).forEach(function(e){box.appendChild(e)});
+  var r=mk('input',{id:'rem',type:'checkbox',style:'width:auto'}),l=mk('label',{style:'display:flex;gap:8px;align-items:center;color:var(--ink)'},[r,'Keep me unlocked on this device (less secure)']);box.appendChild(l);box.appendChild(btn('Connect',connect,1))}
+ else if(pp()){box.appendChild(mk('p',{class:'mut'},['Connected to '+c.repo+' and unlocked. Each notebook syncs automatically.']));box.appendChild(btn('Lock now',lock));box.appendChild(btn('Forget on this device',forget))}
+ else{box.appendChild(mk('p',{class:'mut'},['Connected to '+c.repo+'. Enter your passphrase to unlock sync for the notebooks.']));field('Sync passphrase','pass','password').forEach(function(e){box.appendChild(e)});box.appendChild(btn('Unlock',unlock,1));box.appendChild(btn('Forget on this device',forget))}
+ box.appendChild(mk('p',{class:'mut',id:'cm',role:'status'},[m||'']))}
+draw('');
+})();
+</script>
 </body>
 </html>
