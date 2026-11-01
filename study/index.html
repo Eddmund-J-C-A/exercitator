@@ -40,12 +40,13 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 4px;
 .pw{white-space:pre-wrap}
 
 </style></head><body><main>
+<a class="sec" href="../" style="margin-bottom:12px">← All notebooks</a>
 <h1>Study Notebook</h1>
 <div id="nav"></div><div id="langs"></div><div id="keys"></div><div id="view"></div>
 <p class="mut" id="status" style="text-align:center;margin-top:20px"></p>
 </main><script>
 (function(){
-var CFG={"mode": "both", "title": "Study Notebook", "ls": "study-all-v1", "file": "study-all.enc.json", "gh": "all-gh", "types": ["language", "general"]};
+var CFG={"mode": "both", "title": "Study Notebook", "ls": "study-all-v1", "file": "study-all.enc.json", "gh": "study-gh", "types": ["language", "general"]};
 var $=function(s){return document.querySelector(s)};
 function h(tag,attrs,kids){var e=document.createElement(tag);for(var k in (attrs||{})){if(k==='class')e.className=attrs[k];else if(k.slice(0,2)==='on')e.addEventListener(k.slice(2),attrs[k]);else e.setAttribute(k,attrs[k]);}(kids||[]).forEach(function(c){if(c)e.appendChild(typeof c==='string'?document.createTextNode(c):c)});return e}
 function ap(p,x){if(x)p.appendChild(x)}
@@ -107,11 +108,19 @@ async function gconnect(){
   if(tk)G.tok=tk;else{if(!G.cfg||!G.cfg.tokEnc){status('Paste your GitHub token.');return}
    try{G.tok=await dec(await dkey(pass,ub64(G.cfg.salt)),G.cfg.tokEnc)}catch(e){status('Wrong passphrase.');return}}
   G.on=true;var ok=await sync();if(!ok){G.on=false;G.tok=null;return}
-  G.cfg={repo:G.repo,salt:G.salt,tokEnc:await enc(G.key,G.tok)};try{localStorage.setItem(CFG.gh,JSON.stringify(G.cfg))}catch(e){}render()}
+  G.cfg={repo:G.repo,salt:G.salt,tokEnc:await enc(G.key,G.tok)};try{localStorage.setItem(CFG.gh,JSON.stringify(G.cfg))}catch(e){}keepPass(pass);render()}
  catch(e){status('Could not connect: '+(e.message||'error'))}}
-function gdisc(){G.on=false;G.tok=null;G.key=null;G.pass='';G.cfg=null;try{localStorage.removeItem(CFG.gh)}catch(e){}status('Sync is off and forgotten on this device. Your encrypted file stays in your repository.');render()}
+function gdisc(){G.on=false;G.tok=null;G.key=null;G.pass='';G.cfg=null;try{localStorage.removeItem(CFG.gh);forgetPass()}catch(e){}status('Sync is off and forgotten on this device. Your encrypted file stays in your repository.');render()}
 function gInit(){status(G.cfg?'Enter your sync passphrase on the Backup tab to resume syncing.':'Saved on this device only.');
- document.addEventListener('visibilitychange',function(){if(!document.hidden&&G.on&&G.tok)sync()})}
+ autoResume().then(function(ok){if(ok&&tab==='backup')drawView()});document.addEventListener('visibilitychange',function(){if(!document.hidden&&G.on&&G.tok)sync()})}
+function keepPass(p){try{sessionStorage.setItem('study-pp',p);var r=$('#ghrem');if(r&&r.checked)localStorage.setItem('study-pp',p);else localStorage.removeItem('study-pp')}catch(e){}}
+function forgetPass(){try{sessionStorage.removeItem('study-pp');localStorage.removeItem('study-pp')}catch(e){}}
+async function autoResume(){var p=null;try{p=sessionStorage.getItem('study-pp')||localStorage.getItem('study-pp')}catch(e){}
+ if(!G.cfg||!G.cfg.tokEnc||!p||G.on)return false;
+ try{G.repo=G.cfg.repo;G.pass=p;G.key=null;G.salt=null;G.checked=false;G.tok=await dec(await dkey(p,ub64(G.cfg.salt)),G.cfg.tokEnc)}
+ catch(e){G.tok=null;G.pass='';forgetPass();status('The saved passphrase did not work. Enter it on the Backup tab.');return false}
+ G.on=true;return await sync()}
+function remRow(){var c=h('input',{id:'ghrem',type:'checkbox',style:'width:auto'});try{c.checked=!!localStorage.getItem('study-pp')}catch(e){}return h('label',{style:'display:flex;gap:8px;align-items:center;color:var(--ink);margin-top:10px'},[c,'Keep me unlocked on this device (less secure)'])}
 function gitCard(){
  function inp(id,type,val,ph){var e=h('input',{id:id,type:type,autocomplete:'off',placeholder:ph||''});e.value=val||'';return e}
  function lab(t,e){return h('div',{},[h('label',{for:e.id},[t]),e])}
@@ -120,10 +129,10 @@ function gitCard(){
  if(G.cfg)btns.push(h('button',{class:'sec',style:'margin-top:14px',onclick:gdisc},['Forget on this device']));
  var li=function(t){return h('li',{},[t])};
  return h('div',{class:'card'},[h('h3',{style:'margin:0 0 6px'},['GitHub sync (encrypted)']),
-  h('p',{class:'mut',style:'margin:0'},['Keeps one encrypted file in a private GitHub repository that you own. Your notebook is scrambled in this browser with your passphrase before it leaves the device, so GitHub only holds unreadable data. If two devices edit at once, the newest edit wins.']),
+  h('p',{class:'mut',style:'margin:0'},['Connect once and every notebook on this site shares the same connection. Each keeps one encrypted file in a private GitHub repository that you own. Your notebook is scrambled in this browser with your passphrase before it leaves the device, so GitHub only holds unreadable data. If two devices edit at once, the newest edit wins.']),
   lab('Private repository (owner/name)',inp('ghrepo','text',G.repo,'yourname/study-data')),
   lab('Access token',inp('ghtok','password','',G.cfg?'Saved \u2014 leave blank':'Paste your token')),
-  lab('Sync passphrase',inp('ghpass','password','')),
+  lab('Sync passphrase',inp('ghpass','password','')),remRow(),
   h('div',{class:'row'},btns),
   h('p',{class:'mut',id:'gst',role:'status'},[G.msg||'']),
   h('details',{},[h('summary',{},['One-time setup']),h('ol',{class:'mut'},[
