@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quiz Notebook</title>
+<style>
+:root{--bg:#faf7f2;--card:#fff;--ink:#1f2430;--mut:#6b7280;--line:#e5e0d6;--acc:#1f4f9c;--accink:#fff;--ok:#2e7d4f;--bad:#b3392f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15181f;--card:#1e222b;--ink:#eceae4;--mut:#9aa1ad;--line:#2d333f;--acc:#7aa7ff;--accink:#10131a;--ok:#6fcf97;--bad:#ff8a7a}}
+:root[data-theme="dark"]{--bg:#15181f;--card:#1e222b;--ink:#eceae4;--mut:#9aa1ad;--line:#2d333f;--acc:#7aa7ff;--accink:#10131a;--ok:#6fcf97;--bad:#ff8a7a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI","Noto Sans Hebrew","Noto Sans Arabic",sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:1.3rem;margin:4px 0 12px}h3{margin:0 0 6px}
+#nav{display:flex;gap:6px;margin-bottom:10px}
+#nav button{flex:1;padding:9px 4px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font-size:.95rem;cursor:pointer}
+#nav button.on{background:var(--acc);color:var(--accink);border-color:var(--acc)}
+#langs,.seg{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+#langs button,.seg button{padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;font-size:.9rem}
+#langs button.on,.seg button.on{border-color:var(--acc);color:var(--acc);font-weight:600}
+#keys{display:none;flex-wrap:wrap;gap:5px;margin-bottom:12px;padding:10px;border:1px dashed var(--line);border-radius:10px}
+.key{min-width:38px;padding:6px 8px;font-size:1.1rem;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;cursor:pointer}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+label{display:block;font-size:.85rem;color:var(--mut);margin:10px 0 4px}
+input,textarea,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+button.pri{background:var(--acc);color:var(--accink);border:0;padding:11px 18px;border-radius:10px;font-size:1rem;cursor:pointer;margin-top:14px}
+button.pri.ok{background:var(--ok);color:#fff}button.pri.bad{background:var(--bad);color:#fff}
+button.sec,a.sec{background:transparent;color:var(--ink);border:1px solid var(--line);padding:7px 11px;border-radius:8px;cursor:pointer;font-size:.9rem;text-decoration:none;display:inline-block}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.item{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.big{font-size:1.5rem}
+.tag{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:1px 6px;margin-left:4px}
+.mut{color:var(--mut);font-size:.9rem}
+.q{text-align:center;padding:28px 12px}.q .big{font-size:2.2rem;margin:8px 0}
+.ans{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)}
+.stat{display:flex;gap:16px;justify-content:center;margin:10px 0}
+.empty{text-align:center;color:var(--mut);padding:30px 0}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);font-size:.9rem}
+.choice{display:block;width:100%;text-align:left;margin:6px 0;padding:11px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font:inherit;cursor:pointer}
+.choice.ok{border-color:var(--ok);background:rgba(46,125,79,.18)}.choice.bad{border-color:var(--bad);background:rgba(179,57,47,.18)}
+.pw{white-space:pre-wrap}
+
+</style></head><body><main>
+<h1>Quiz Notebook</h1>
+<div id="nav"></div><div id="langs"></div><div id="keys"></div><div id="view"></div>
+<p class="mut" id="status" style="text-align:center;margin-top:20px"></p>
+</main><script>
+(function(){
+var CFG={"mode": "general", "title": "Quiz Notebook", "ls": "general-quiz-v1", "file": "general-quiz.enc.json", "gh": "general-gh", "types": ["general"]};
+var $=function(s){return document.querySelector(s)};
+function h(tag,attrs,kids){var e=document.createElement(tag);for(var k in (attrs||{})){if(k==='class')e.className=attrs[k];else if(k.slice(0,2)==='on')e.addEventListener(k.slice(2),attrs[k]);else e.setAttribute(k,attrs[k]);}(kids||[]).forEach(function(c){if(c)e.appendChild(typeof c==='string'?document.createTextNode(c):c)});return e}
+function ap(p,x){if(x)p.appendChild(x)}
+function uid(){return 'i'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+var items=[],langs=[],cur='all',tab='add',editing=null,U=0,showKeys=false,lastEl=null,addLang=null,draft=null,tf=[];
+function hasLang(){return CFG.types.indexOf('language')>=0}
+var PRE=[['Hebrew','he','אבגדהוזחטיכךלמםנןסעפףצץקרשת\u05B0\u05B1\u05B2\u05B4\u05B5\u05B6\u05B7\u05B8\u05B9\u05BB\u05BC\u05C1\u05C2'],['Spanish','es','áéíóúüñ¿¡'],['French','fr','àâæçéèêëîïôœùûüÿ«»'],['German','de','äöüßÄÖÜ'],['Italian','it','àèéìòù'],['Portuguese','pt','ãõáâàéêíóôúç'],['Greek','el','αβγδεζηθικλμνξοπρσςτυφχψωάέήίόύώ'],['Russian','ru','абвгдеёжзийклмнопрстуфхцчшщъыьэюя'],['Arabic','ar','ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهوىي\u064B\u064C\u064D\u064E\u064F\u0650\u0651\u0652'],['Japanese','ja','あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんー'],['Korean','ko',''],['Chinese (Mandarin)','zh-CN','āáǎàēéěèīíǐìōóǒòūúǔùü'],['Latin','la','āēīōūăĕĭŏŭ']];
+function mkColl(n,type,c,ch){return{id:uid(),name:n,type:type||'language',code:c||'',chars:ch||''}}
+function L(id){return langs.find(function(l){return l.id===id})}
+function isGen(i){var l=L(i.lang);return !!l&&l.type==='general'}
+function lsLoad(){
+ try{U=+localStorage.getItem(CFG.ls+'-u')||0;var d=JSON.parse(localStorage.getItem(CFG.ls)||'null');if(d&&d.langs&&d.langs.length){items=d.items||[];langs=d.langs;fixTypes();return}}catch(e){}
+ items=[];langs=[];
+ if(CFG.mode!=='general'){
+  try{var o=JSON.parse(localStorage.getItem('lang-study-v1')||'null');if(o&&o.langs&&o.langs.length){items=o.items||[];langs=o.langs}}catch(e){}
+  if(!langs.length){langs.push(mkColl(PRE[0][0],'language',PRE[0][1],PRE[0][2]));try{JSON.parse(localStorage.getItem('hebrew-study-items-v1')||'[]').forEach(function(x){x.lang=langs[0].id;items.push(x)})}catch(e){}}}
+ if(CFG.mode!=='lang')langs.push(mkColl('My questions','general'));
+ fixTypes()}
+function fixTypes(){langs.forEach(function(l){if(!l.type)l.type='language'})}
+function lsStore(){try{localStorage.setItem(CFG.ls,JSON.stringify({items:items,langs:langs}));localStorage.setItem(CFG.ls+'-u',String(U))}catch(e){}}
+function lsSave(){U=Date.now();lsStore();schedule()}
+function save(it){var i=items.findIndex(function(x){return x.id===it.id});if(i<0)items.push(it);else items[i]=it;lsSave()}
+function remove(id){items=items.filter(function(x){return x.id!==id});lsSave()}
+var G={repo:'',cfg:null,tok:null,key:null,salt:null,pass:'',sha:null,on:false,t:null,busy:false,again:false,msg:'',checked:false};
+try{G.cfg=JSON.parse(localStorage.getItem(CFG.gh)||'null');if(G.cfg)G.repo=G.cfg.repo}catch(e){}
+function status(t){G.msg=t;['status','gst'].forEach(function(i){var e=document.getElementById(i);if(e)e.textContent=t})}
+function schedule(){if(!G.on||!G.tok)return;status('Saving\u2026');clearTimeout(G.t);G.t=setTimeout(function(){sync()},1200)}
+function b64(u){var s='',a=new Uint8Array(u);for(var i=0;i<a.length;i+=8192)s+=String.fromCharCode.apply(null,a.subarray(i,i+8192));return btoa(s)}
+function ub64(t){return Uint8Array.from(atob(t),function(c){return c.charCodeAt(0)})}
+async function dkey(pass,salt){var k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:250000,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function enc(key,txt){var iv=crypto.getRandomValues(new Uint8Array(12));var ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,new TextEncoder().encode(txt));return{iv:b64(iv),ct:b64(ct)}}
+async function dec(key,o){return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:ub64(o.iv)},key,ub64(o.ct)))}
+function GHH(){return{Authorization:'Bearer '+G.tok,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}}
+var TOKERR='GitHub refused the token (it needs Contents read and write on this repository, and must not be expired)';
+async function gh(method,body){var r=await fetch('https://api.github.com/repos/'+G.repo+'/contents/'+CFG.file,{method:method,cache:'no-store',headers:GHH(),body:body?JSON.stringify(body):undefined});
+ if(r.status==404&&method=='GET')return null;if(r.status==401||r.status==403)throw new Error(TOKERR);if(!r.ok)throw new Error('GitHub error '+r.status);return r.json()}
+async function remote(){
+ if(!G.checked){var rr=await fetch('https://api.github.com/repos/'+G.repo,{cache:'no-store',headers:GHH()});
+  if(rr.status==401||rr.status==403)throw new Error(TOKERR);if(rr.status==404)throw new Error('GitHub cannot find that repository, or the token cannot see it');if(!rr.ok)throw new Error('GitHub error '+rr.status);
+  var rj=await rr.json();if(rj.private===false)throw new Error('That repository is public. Please use a private one');G.checked=true}
+ var j=await gh('GET');if(!j){G.sha=null;return null}G.sha=j.sha;return JSON.parse(atob(j.content.replace(/\s/g,'')))}
+async function upload(){var e=await enc(G.key,JSON.stringify({items:items,langs:langs}));var body={message:'Notebook update',content:btoa(JSON.stringify({v:1,salt:G.salt,iv:e.iv,ct:e.ct,u:U}))};if(G.sha)body.sha=G.sha;var j=await gh('PUT',body);G.sha=j.content.sha}
+async function sync(){
+ if(!G.tok||!G.pass){status('Enter your sync passphrase to start syncing.');return false}
+ if(G.busy){G.again=true;return false}G.busy=true;var ok=false;
+ try{status('Syncing\u2026');var r=await remote();
+  if(!G.key||(r&&r.salt!=G.salt)){var salt=r?ub64(r.salt):crypto.getRandomValues(new Uint8Array(16));G.key=await dkey(G.pass,salt);G.salt=b64(salt)}
+  var d=null;if(r){try{d=JSON.parse(await dec(G.key,r))}catch(e){G.key=null;G.salt=null;throw new Error('Wrong passphrase, or the file was changed')}}
+  if(r&&r.u>U&&d&&d.items){items=d.items;langs=d.langs||langs;U=r.u;lsStore();refreshAfterSync()}
+  else if(!r||U>r.u){if(!U)U=Date.now();lsStore();await upload()}
+  status('\ud83d\udd12 Synced (encrypted) with GitHub at '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}));ok=true}
+ catch(e){status('Not synced: '+(e.message||'error')+'. Your data is safe on this device.')}
+ G.busy=false;if(G.again){G.again=false;schedule()}return ok}
+async function gconnect(){
+ var repo=$('#ghrepo').value.trim(),tk=$('#ghtok').value.trim(),pass=$('#ghpass').value;
+ if(!/^[\w.-]+\/[\w.-]+$/.test(repo)){status('Enter the repository as owner/name.');return}
+ if(pass.length<8){status('Use a passphrase of at least 8 characters.');return}
+ try{G.repo=repo;G.pass=pass;G.key=null;G.salt=null;G.checked=false;
+  if(tk)G.tok=tk;else{if(!G.cfg||!G.cfg.tokEnc){status('Paste your GitHub token.');return}
+   try{G.tok=await dec(await dkey(pass,ub64(G.cfg.salt)),G.cfg.tokEnc)}catch(e){status('Wrong passphrase.');return}}
+  G.on=true;var ok=await sync();if(!ok){G.on=false;G.tok=null;return}
+  G.cfg={repo:G.repo,salt:G.salt,tokEnc:await enc(G.key,G.tok)};try{localStorage.setItem(CFG.gh,JSON.stringify(G.cfg))}catch(e){}render()}
+ catch(e){status('Could not connect: '+(e.message||'error'))}}
+function gdisc(){G.on=false;G.tok=null;G.key=null;G.pass='';G.cfg=null;try{localStorage.removeItem(CFG.gh)}catch(e){}status('Sync is off and forgotten on this device. Your encrypted file stays in your repository.');render()}
+function gInit(){status(G.cfg?'Enter your sync passphrase on the Backup tab to resume syncing.':'Saved on this device only.');
+ document.addEventListener('visibilitychange',function(){if(!document.hidden&&G.on&&G.tok)sync()})}
+function gitCard(){
+ function inp(id,type,val,ph){var e=h('input',{id:id,type:type,autocomplete:'off',placeholder:ph||''});e.value=val||'';return e}
+ function lab(t,e){return h('div',{},[h('label',{for:e.id},[t]),e])}
+ var btns=[h('button',{class:'pri',onclick:gconnect},[G.on?'Reconnect':G.cfg?'Unlock sync':'Connect GitHub']),
+  h('button',{class:'sec',style:'margin-top:14px',onclick:function(){sync()}},['Sync now'])];
+ if(G.cfg)btns.push(h('button',{class:'sec',style:'margin-top:14px',onclick:gdisc},['Forget on this device']));
+ var li=function(t){return h('li',{},[t])};
+ return h('div',{class:'card'},[h('h3',{style:'margin:0 0 6px'},['GitHub sync (encrypted)']),
+  h('p',{class:'mut',style:'margin:0'},['Keeps one encrypted file in a private GitHub repository that you own. Your notebook is scrambled in this browser with your passphrase before it leaves the device, so GitHub only holds unreadable data. If two devices edit at once, the newest edit wins.']),
+  lab('Private repository (owner/name)',inp('ghrepo','text',G.repo,'yourname/study-data')),
+  lab('Access token',inp('ghtok','password','',G.cfg?'Saved \u2014 leave blank':'Paste your token')),
+  lab('Sync passphrase',inp('ghpass','password','')),
+  h('div',{class:'row'},btns),
+  h('p',{class:'mut',id:'gst',role:'status'},[G.msg||'']),
+  h('details',{},[h('summary',{},['One-time setup']),h('ol',{class:'mut'},[
+   li('Create a second GitHub repository, such as study-data. Set it to Private and add a README. Keep it separate from the public repository that hosts this page.'),
+   li('On GitHub go to Settings, Developer settings, Personal access tokens, Fine-grained tokens. Choose Only select repositories, pick study-data, and set Contents to Read and write. Generate the token and copy it.'),
+   li('Paste the repository, token and a passphrase here and press Connect. The passphrase cannot be recovered, so choose one you will remember.'),
+   li('On another device, open this page and enter the same repository, token and passphrase. After that it only asks for the passphrase.')])])])}
+
+function norm(s){return String(s||'').replace(/[\u0591-\u05C7\u064B-\u065F]/g,'').trim().toLowerCase()}
+function key(i){return i.lang+'|'+norm(i.he)+'|'+String(i.en||'').toLowerCase().trim()}
+function speak(t,c){if(!window.speechSynthesis)return;speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(t);if(c)u.lang=c;speechSynthesis.speak(u)}
+function lookUrl(t,c){return 'https://translate.google.com/?sl='+(c||'auto')+'&tl=en&text='+encodeURIComponent(t)+'&op=translate'}
+function arm(b,label,fn){if(b.dataset.arm){fn();return}b.dataset.arm='1';var o=b.textContent;b.textContent=label;setTimeout(function(){b.dataset.arm='';b.textContent=o},3000)}
+function langSel(id,val){var s=h('select',{id:id});langs.forEach(function(l){var o=h('option',{value:l.id},[l.name]);if(l.id===val)o.selected=true;s.appendChild(o)});return s}
+function field(label,id,val,multi){var el=multi?h('textarea',{id:id,rows:'3'}):h('input',{id:id,type:'text',autocomplete:'off'});el.setAttribute('dir','auto');el.value=val||'';return h('div',{},[h('label',{for:id},[label]),el])}
+function speakBtn(t,c){return window.speechSynthesis?h('button',{class:'sec',title:'Pronounce',onclick:function(){speak(t,c)}},['🔊']):null}
+document.addEventListener('focusin',function(e){var t=e.target;if((t.tagName==='INPUT'&&t.type==='text')||t.tagName==='TEXTAREA')lastEl=t});
+function insertChar(c){var t=lastEl;if(!t||!document.body.contains(t)){status('Tap a text box first, then a character.');return}var s=t.selectionStart||0,e=t.selectionEnd||0;t.value=t.value.slice(0,s)+c+t.value.slice(e);t.focus();t.selectionStart=t.selectionEnd=s+c.length;t.dispatchEvent(new Event('input',{bubbles:true}))}
+
+function drawTop(){
+ if(cur!=='all'&&!L(cur))cur='all';
+ var nav=$('#nav');nav.innerHTML='';
+ [['add','Add'],['review','Review'],['quiz','Quiz'],['tools','Tools'],['backup','Backup']].forEach(function(t){nav.appendChild(h('button',{class:tab===t[0]?'on':'',onclick:function(){tab=t[0];editing=null;if(tab==='quiz'){resetQuiz();Q.lang=cur}render()}},[t[1]]))});
+ var lb=$('#langs');lb.innerHTML='';
+ function chip(id,label,n){lb.appendChild(h('button',{class:cur===id?'on':'',onclick:function(){cur=id;if(tab==='quiz'&&!Q.started)Q.lang=id;render()}},[label+' '+n]))}
+ chip('all','All',items.length);
+ langs.forEach(function(l){chip(l.id,l.name,items.filter(function(i){return i.lang===l.id}).length)});
+ lb.appendChild(h('button',{class:showKeys?'on':'',onclick:function(){showKeys=!showKeys;drawTop()}},['⌨ Keys']));
+ var kp=$('#keys');kp.innerHTML='';kp.style.display=showKeys?'flex':'none';
+ if(showKeys){var l=L(cur!=='all'?cur:addLang)||langs[0],cs=Array.from(l.chars||'').filter(function(c){return c.trim()});
+  if(!cs.length)kp.appendChild(h('span',{class:'mut'},['No special characters set for '+l.name+'. Add some under Tools, Languages.']));
+  cs.forEach(function(c){var b=h('button',{class:'key'},[(/[\u0591-\u05C7\u064B-\u065F]/.test(c)?'\u25CC':'')+c]);b.addEventListener('mousedown',function(ev){ev.preventDefault()});b.addEventListener('click',function(){insertChar(c)});kp.appendChild(b)})}}
+function drawView(){var v=$('#view');v.innerHTML='';({add:viewAdd,review:viewReview,quiz:viewQuiz,tools:viewTools,backup:viewBackup})[tab](v)}
+function render(){drawTop();drawView()}
+
+function viewAdd(v){
+ var e=editing?items.find(function(x){return x.id===editing}):null;
+ var lang=e?e.lang:(cur!=='all'?cur:(addLang&&L(addLang)?addLang:langs[0].id));
+ var ls=langSel('f_lang',lang),ks=h('select',{id:'f_kind'},[h('option',{value:'vocab'},['Vocabulary']),h('option',{value:'grammar'},['Grammar'])]);ks.value=e?e.kind:'vocab';
+ ls.addEventListener('change',function(){addLang=ls.value;drawTop()});
+ function submit(){var he=$('#f_he').value.trim(),en=$('#f_en').value.trim();
+  if(!he||!en){status('Please fill in both the word and its meaning.');return}
+  var it=e||{id:uid(),added:Date.now(),right:0,wrong:0};
+  it.lang=ls.value;it.kind=ks.value;it.he=he;it.tr=$('#f_tr').value.trim();it.en=en;it.nt=$('#f_nt').value.trim();
+  addLang=it.lang;save(it);editing=null;status('Saved ✓');if(e)tab='review';render();var f=$('#f_he');if(f&&!e)f.focus()}
+ v.appendChild(h('div',{class:'card'},[h('div',{class:'row'},[h('div',{style:'flex:1'},[h('label',{for:'f_lang'},['Language']),ls]),h('div',{style:'flex:1'},[h('label',{for:'f_kind'},['Type']),ks])]),
+  field('Word, phrase or grammar example','f_he',e&&e.he),field('Transliteration / pronunciation (optional)','f_tr',e&&e.tr),field('Meaning or rule name','f_en',e&&e.en),field('Notes (optional)','f_nt',e&&e.nt,true),
+  h('div',{class:'row'},[h('button',{class:'pri',onclick:submit},[e?'Save changes':'Add to notebook']),e?h('button',{class:'sec',style:'margin-top:14px',onclick:function(){editing=null;render()}},['Cancel']):null])]))}
+
+var kf='all';
+function viewReview(v){
+ var seg=h('div',{class:'seg'});[['all','All types'],['vocab','Vocabulary'],['grammar','Grammar']].forEach(function(f){seg.appendChild(h('button',{class:kf===f[0]?'on':'',onclick:function(){kf=f[0];render()}},[f[1]]))});v.appendChild(seg);
+ var q=h('input',{type:'text',placeholder:'Search…',style:'margin-bottom:12px'}),list=h('div');v.appendChild(q);v.appendChild(list);
+ function draw(){list.innerHTML='';var s=q.value.toLowerCase();
+  var xs=items.filter(function(i){return (cur==='all'||i.lang===cur)&&(kf==='all'||i.kind===kf)&&(i.he+i.tr+i.en+i.nt).toLowerCase().indexOf(s)>=0}).sort(function(a,b){return b.added-a.added});
+  if(!xs.length){list.appendChild(h('div',{class:'empty'},[items.length?'Nothing matches.':'Nothing here yet. Add your first entry!']));return}
+  xs.forEach(function(i){var l=L(i.lang)||{name:'?',code:''},tot=i.right+i.wrong;
+   var left=h('div',{},[h('div',{class:'big',dir:'auto'},[i.he]),h('div',{dir:'auto'},[i.en]),i.tr?h('div',{class:'mut',dir:'auto'},[i.tr]):null,i.nt?h('div',{class:'mut',dir:'auto'},[i.nt]):null]);
+   var right=h('div',{style:'text-align:right;min-width:100px'},[cur==='all'?h('span',{class:'tag'},[l.name]):null,h('span',{class:'tag'},[i.kind]),h('div',{class:'mut'},[tot?i.right+'/'+tot+' correct':'not quizzed']),
+    h('div',{class:'row',style:'justify-content:flex-end;margin-top:6px'},[speakBtn(i.he,l.code),h('a',{class:'sec',href:lookUrl(i.he,l.code),target:'_blank',rel:'noopener'},['Look up']),
+     h('button',{class:'sec',onclick:function(){editing=i.id;tab='add';render();window.scrollTo(0,0)}},['Edit']),
+     h('button',{class:'sec',onclick:function(ev){arm(ev.currentTarget,'Delete?',function(){remove(i.id);render()})}},['✕'])])]);
+   list.appendChild(h('div',{class:'card item'},[left,right]))})}
+ q.addEventListener('input',draw);draw()}
+
+var Q={lang:'all',kind:'all',dir:'tm',limit:0,queue:[],cur:null,shown:false,ok:0,bad:0,started:false,d:'tm'};
+function resetQuiz(){Q.started=false;Q.cur=null;Q.ok=0;Q.bad=0;Q.limit=0}
+function pool(){return items.filter(function(i){return (Q.lang==='all'||i.lang===Q.lang)&&(Q.kind==='all'||i.kind===Q.kind)})}
+function startQuiz(){var p=pool().map(function(i){var t=i.right+i.wrong;return{i:i,w:Math.random()+(t?i.wrong/t:.5)}}).sort(function(a,b){return b.w-a.w}).map(function(x){return x.i});
+ Q.queue=Q.limit?p.slice(0,Q.limit):p;Q.started=true;Q.ok=0;Q.bad=0;next()}
+function next(){Q.cur=Q.queue.shift()||null;Q.shown=false;Q.d=Q.dir==='mix'?(Math.random()<.5?'tm':'mt'):Q.dir}
+function drill(n){Q.lang=cur;Q.kind='all';Q.limit=n;if(!pool().length){status('Add some entries first.');return}tab='quiz';startQuiz();render()}
+function segOf(opts,val,set){var s=h('div',{class:'seg'});opts.forEach(function(o){s.appendChild(h('button',{class:val===o[0]?'on':'',onclick:function(){set(o[0]);render()}},[o[1]]))});return s}
+function viewQuiz(v){
+ if(!Q.started){var c=h('div',{class:'card'});
+  c.appendChild(h('label',{},['Language']));c.appendChild(segOf([['all','All languages']].concat(langs.map(function(l){return[l.id,l.name]})),Q.lang,function(x){Q.lang=x}));
+  c.appendChild(h('label',{},['What to practice']));c.appendChild(segOf([['all','Everything'],['vocab','Vocabulary'],['grammar','Grammar']],Q.kind,function(x){Q.kind=x}));
+  c.appendChild(h('label',{},['Direction']));c.appendChild(segOf([['tm','Word → meaning'],['mt','Meaning → word'],['mix','Mixed']],Q.dir,function(x){Q.dir=x}));
+  var n=pool().length;c.appendChild(h('p',{class:'mut'},[n?n+' cards ready. Ones you miss most come up first.':'No entries match. Add some, or pick another language.']));
+  var b=h('button',{class:'pri',onclick:function(){Q.limit=0;startQuiz();render()}},['Start quiz']);if(!n)b.disabled=true;
+  var b5=h('button',{class:'sec',style:'margin:14px 0 0 8px',onclick:function(){Q.limit=5;startQuiz();render()}},['Quick 5']);if(!n)b5.disabled=true;
+  c.appendChild(h('div',{class:'row'},[b,b5]));v.appendChild(c);return}
+ if(!Q.cur){var t=Q.ok+Q.bad;v.appendChild(h('div',{class:'card q'},[h('div',{class:'big'},['🎉']),h('h2',{},['Round complete']),h('div',{},[t?Q.ok+' of '+t+' correct ('+Math.round(100*Q.ok/t)+'%)':'']),
+  h('div',{class:'row',style:'justify-content:center'},[h('button',{class:'pri',onclick:function(){startQuiz();render()}},['Go again']),h('button',{class:'sec',style:'margin-top:14px',onclick:function(){resetQuiz();render()}},['Change settings'])])]));return}
+ var i=Q.cur,l=L(i.lang)||{name:'?',code:''},tm=Q.d==='tm';
+ var term=function(){return h('div',{class:'big',dir:'auto'},[i.he])},mean=function(){return h('div',{class:'big',dir:'auto'},[i.en])};
+ var card=h('div',{class:'card q'},[h('span',{class:'tag'},[l.name]),h('span',{class:'tag'},[i.kind]),tm?term():mean()]);
+ if(tm){if(i.tr)card.appendChild(h('div',{class:'mut'},['('+i.tr+')']));card.appendChild(speakBtn(i.he,l.code))}
+ if(!Q.shown)card.appendChild(h('div',{},[h('button',{class:'pri',onclick:function(){Q.shown=true;render()}},['Show answer'])]));
+ else{var a=h('div',{class:'ans'},[tm?mean():term()]);
+  if(!tm){if(i.tr)a.appendChild(h('div',{class:'mut'},[i.tr]));a.appendChild(speakBtn(i.he,l.code))}
+  if(i.nt)a.appendChild(h('div',{class:'mut',dir:'auto'},[i.nt]));
+  a.appendChild(h('div',{class:'row',style:'justify-content:center;margin-top:14px'},[h('button',{class:'pri bad',onclick:function(){grade(false)}},['Missed it']),h('button',{class:'pri ok',onclick:function(){grade(true)}},['Got it'])]));card.appendChild(a)}
+ v.appendChild(card);
+ v.appendChild(h('div',{class:'stat mut'},[h('span',{},['✓ '+Q.ok]),h('span',{},['✗ '+Q.bad]),h('span',{},[Q.queue.length+' left'])]));
+ v.appendChild(h('div',{style:'text-align:center'},[h('button',{class:'sec',onclick:function(){resetQuiz();render()}},['End quiz'])]))}
+function grade(ok){var i=Q.cur;if(ok){i.right++;Q.ok++}else{i.wrong++;Q.bad++;Q.queue.push(i)}save(i);next();render()}
+
+function viewTools(v){
+ var ql=langSel('q_lang',cur!=='all'?cur:(addLang&&L(addLang)?addLang:langs[0].id)),qt=h('textarea',{id:'q_txt',rows:'5',placeholder:'One per line, like:\nshalom = hello\nla casa - the house'});qt.setAttribute('dir','auto');
+ v.appendChild(h('div',{class:'card'},[h('h3',{},['Quick add (many at once)']),h('p',{class:'mut',style:'margin:0'},['Paste or type lines as word = meaning. A dash, semicolon or tab also works.']),h('label',{for:'q_lang'},['Language']),ql,qt,
+  h('button',{class:'pri',onclick:function(){var n=0,sk=0,dup=0,idx={};items.forEach(function(i){idx[key(i)]=1});
+   qt.value.split(/\r?\n/).forEach(function(line){line=line.trim();if(!line)return;var m=line.match(/^(.+?)\s*(?:=|\t|;|\s[-–—]\s)\s*(.+)$/);if(!m){sk++;return}
+    var it={id:uid(),lang:ql.value,kind:'vocab',he:m[1].trim(),tr:'',en:m[2].trim(),nt:'',added:Date.now(),right:0,wrong:0};if(idx[key(it)]){dup++;return}idx[key(it)]=1;items.push(it);n++});
+   if(n)lsSave();qt.value='';status('Added '+n+(dup?', '+dup+' duplicates skipped':'')+(sk?', '+sk+' lines not understood':'')+'.');render()}},['Add all'])]));
+ var tl=langSel('t_lang',cur!=='all'?cur:langs[0].id),ti=h('input',{id:'t_txt',type:'text',placeholder:'Type any word or phrase'});ti.setAttribute('dir','auto');
+ function lg(){return L(tl.value)||{code:''}}
+ v.appendChild(h('div',{class:'card'},[h('h3',{},['Pronounce and look up']),h('label',{for:'t_lang'},['Language']),tl,ti,
+  h('div',{class:'row',style:'margin-top:10px'},[speakBtn('',''),null].slice(1)
+   .concat([h('button',{class:'sec',onclick:function(){if(ti.value.trim())speak(ti.value,lg().code)}},['🔊 Speak']),
+    h('button',{class:'sec',onclick:function(){if(ti.value.trim())window.open(lookUrl(ti.value.trim(),lg().code),'_blank','noopener')}},['Google Translate']),
+    h('button',{class:'sec',onclick:function(){if(ti.value.trim())window.open('https://en.wiktionary.org/wiki/'+encodeURIComponent(ti.value.trim()),'_blank','noopener')}},['Wiktionary'])]))]));
+ v.appendChild(h('div',{class:'card'},[h('h3',{},['Quick drill']),h('p',{class:'mut',style:'margin:0 0 8px'},['Your hardest cards first, from '+(cur==='all'?'all languages':lname(cur))+'.']),
+  h('div',{class:'row'},[5,10,20].map(function(n){return h('button',{class:'sec',onclick:function(){drill(n)}},[n+' cards'])}))]));
+ var rows=langs.map(function(l){var xs=items.filter(function(i){return i.lang===l.id}),r=0,w=0;xs.forEach(function(i){r+=i.right;w+=i.wrong});
+  var hard=xs.filter(function(i){return i.wrong>i.right}).length;return h('tr',{},[h('td',{},[l.name]),h('td',{},[String(xs.length)]),h('td',{},[r+w?Math.round(100*r/(r+w))+'%':'–']),h('td',{},[String(hard)])])});
+ v.appendChild(h('div',{class:'card'},[h('h3',{},['Stats']),h('table',{},[h('tr',{},['Language','Entries','Accuracy','Trouble spots'].map(function(x){return h('th',{},[x])}))].concat(rows))]));
+ var lc=h('div',{class:'card'},[h('h3',{},['Languages']),h('p',{class:'mut',style:'margin:0'},['The code (like es or he) sets the pronunciation voice. Characters fill the ⌨ Keys panel.'])]);
+ langs.forEach(function(l){function inp(f,ph){var e=h('input',{type:'text',value:l[f]||'',placeholder:ph,'aria-label':ph});e.addEventListener('change',function(){l[f]=e.value.trim()||(f==='name'?l.name:'');lsSave();drawTop()});return e}
+  lc.appendChild(h('div',{style:'padding:10px 0;border-top:1px solid var(--line)'},[h('div',{class:'row'},[h('div',{style:'flex:2'},[inp('name','Name')]),h('div',{style:'flex:1'},[inp('code','Code')]),
+   h('button',{class:'sec',onclick:function(ev){if(langs.length<2){status('Keep at least one language.');return}var n=items.filter(function(i){return i.lang===l.id}).length;
+    arm(ev.currentTarget,'Delete '+n+' entries?',function(){items=items.filter(function(i){return i.lang!==l.id});langs=langs.filter(function(x){return x!==l});lsSave();render()})}},['Delete'])]),
+   h('div',{style:'margin-top:6px'},[inp('chars','Special characters')])]))});
+ var ps=h('select',{});PRE.forEach(function(p,i){ps.appendChild(h('option',{value:String(i)},[p[0]]))});ps.appendChild(h('option',{value:'x'},['Other (type a name)']));
+ var pn=h('input',{type:'text',placeholder:'Name (needed for Other)'}),pc=h('input',{type:'text',placeholder:'Code, e.g. nl (optional)'});
+ lc.appendChild(h('div',{style:'border-top:1px solid var(--line);padding-top:10px'},[h('label',{},['Add a language']),ps,pn,pc,h('button',{class:'pri',onclick:function(){
+  var p=PRE[+ps.value],name=pn.value.trim()||(p?p[0]:'');if(!name){status('Type a language name.');return}
+  if(langs.some(function(l){return l.name.toLowerCase()===name.toLowerCase()})){status('You already have that language.');return}
+  var nl=mkLang(name,pc.value.trim()||(p&&!pn.value.trim()?p[1]:''),p?p[2]:'');langs.push(nl);cur=nl.id;lsSave();render()}},['Add language'])]));
+ v.appendChild(lc)}
+function lname(id){var l=L(id);return l?l.name:'all languages'}
+
+function dlFile(name,text){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}
+function stamp(){return new Date().toISOString().slice(0,10)}
+function csvEsc(s){s=String(s==null?'':s);return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
+function toCSV(){var rows=[['language','kind','term','transliteration','meaning','notes','right','wrong']];items.forEach(function(i){rows.push([lname(i.lang),i.kind,i.he,i.tr,i.en,i.nt,i.right,i.wrong])});return '\ufeff'+rows.map(function(r){return r.map(csvEsc).join(',')}).join('\r\n')}
+function toJSON(){return JSON.stringify({app:'language-study',version:2,exported:new Date().toISOString(),langs:langs,items:items},null,2)}
+function parseCSV(t){var rows=[],row=[],f='',q=false,i=0;t=t.replace(/^\ufeff/,'');
+ for(;i<t.length;i++){var c=t[i];
+  if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+  else if(c==='"')q=true;else if(c===','){row.push(f);f=''}
+  else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(f);f='';rows.push(row);row=[]}
+  else f+=c}
+ if(f!==''||row.length){row.push(f);rows.push(row)}
+ return rows.filter(function(r){return r.some(function(x){return x.trim()})})}
+function parseAny(t){t=t.trim();if(!t)return null;
+ if(t[0]==='['||t[0]==='{'){var d=JSON.parse(t);return Array.isArray(d)?{langs:[],items:d}:{langs:d.langs||[],items:d.items||[]}}
+ var its=[];parseCSV(t).forEach(function(r){var c0=(r[0]||'').trim().toLowerCase();if(c0==='language'||c0==='kind')return;
+  if(r.length>=8)its.push({langName:r[0],kind:r[1],he:r[2],tr:r[3],en:r[4],nt:r[5],right:r[6],wrong:r[7]});
+  else its.push({kind:r[0],he:r[1],tr:r[2],en:r[3],nt:r[4],right:r[5],wrong:r[6]})});
+ return{langs:[],items:its}}
+function importData(d,def){var map={},a=0,u=0,s=0,nl=0,idx={};
+ d.langs.forEach(function(l){var m=langs.find(function(x){return x.id===l.id||x.name.toLowerCase()===String(l.name||'').toLowerCase()});if(!m){m=mkLang(l.name||'Language',l.code,l.chars);langs.push(m);nl++}map[l.id]=m.id});
+ items.forEach(function(i){idx[key(i)]=i});
+ d.items.forEach(function(n){if(!n||!n.he||!n.en){s++;return}var lg;
+  if(n.langName&&n.langName.trim()){lg=langs.find(function(x){return x.name.toLowerCase()===n.langName.trim().toLowerCase()});if(!lg){lg=mkLang(n.langName.trim());langs.push(lg);nl++}lg=lg.id}
+  else lg=map[n.lang]||(L(n.lang)?n.lang:def);
+  var c={lang:lg,kind:n.kind==='grammar'?'grammar':'vocab',he:String(n.he).trim(),tr:n.tr||'',en:String(n.en).trim(),nt:n.nt||'',added:+n.added||Date.now(),right:+n.right||0,wrong:+n.wrong||0},k=key(c),o=idx[k];
+  if(!o){c.id=uid();items.push(c);idx[k]=c;a++;return}
+  var ch=false;if(!o.tr&&c.tr){o.tr=c.tr;ch=true}
+  if(!o.nt&&c.nt){o.nt=c.nt;ch=true}else if(c.nt&&o.nt!==c.nt&&o.nt.indexOf(c.nt)<0){o.nt+=' | '+c.nt;ch=true}
+  var r=Math.max(o.right,c.right),w=Math.max(o.wrong,c.wrong);if(r!==o.right||w!==o.wrong){o.right=r;o.wrong=w;ch=true}
+  if(ch)u++;else s++});
+ lsSave();return{a:a,u:u,s:s,nl:nl}}
+function viewBackup(v){
+ var out=h('textarea',{rows:'4',readonly:'readonly',style:'margin-top:10px;display:none'});
+ function exp(name,text){if(!items.length){status('Nothing to export yet.');return}try{dlFile(name,text);status('Export saved ✓')}catch(e){out.value=text;out.style.display='block';out.select();status('Download blocked — copy the text below.')}}
+ v.appendChild(h('div',{class:'card'},[h('h3',{},['Export (all languages)']),h('p',{class:'mut',style:'margin:0 0 10px'},['A JSON backup, or a CSV for Excel or Google Sheets.']),
+  h('div',{class:'row'},[h('button',{class:'sec',onclick:function(){exp('language-notebook-'+stamp()+'.json',toJSON())}},['Download JSON backup']),h('button',{class:'sec',onclick:function(){exp('language-notebook-'+stamp()+'.csv',toCSV())}},['Download CSV'])]),out]));
+ var ta=h('textarea',{rows:'6',placeholder:'Paste JSON or CSV here, or choose a file…',style:'margin-top:10px'}),fi=h('input',{type:'file',accept:'.json,.csv,.txt'}),dl=langSel('m_lang',cur!=='all'?cur:langs[0].id);
+ fi.addEventListener('change',function(){var f=fi.files&&fi.files[0];if(!f)return;var r=new FileReader();r.onload=function(){ta.value=String(r.result);status('File loaded. Review it, then press Merge.')};r.readAsText(f)});
+ v.appendChild(h('div',{class:'card'},[h('h3',{},['Import and merge']),h('p',{class:'mut',style:'margin:0 0 10px'},['Combines a backup with what is here. Matches (same language, word and meaning) keep your entry, fill blanks and keep the higher quiz scores; new ones are added. Nothing is deleted. Backups from the old Hebrew notebook have no language, so they go into the one chosen below.']),
+  fi,h('label',{for:'m_lang'},['Entries without a language go into']),dl,ta,
+  h('button',{class:'pri',onclick:function(){try{var d=parseAny(ta.value);if(!d||!d.items.length){status('Nothing to import.');return}var r=importData(d,dl.value);ta.value='';status('Merged: '+r.a+' added, '+r.u+' updated, '+r.s+' unchanged or skipped'+(r.nl?', '+r.nl+' new languages':'')+'.');setTimeout(render,0)}catch(e){status('Could not read that. Check it is a JSON backup or CSV.')}}},['Merge into notebook'])]));
+ v.appendChild(gitCard())}
+
+function norm(s){return String(s||'').replace(/[\u0591-\u05C7\u064B-\u065F]/g,'').trim().toLowerCase()}
+function nrm(s){return String(s||'').replace(/[\u0591-\u05C7\u064B-\u065F]/g,'').toLowerCase().replace(/[.,;:!?¿¡"“”'’()\-]/g,'').replace(/\s+/g,' ').trim()}
+function key(i){return i.lang+'|'+norm(i.he)+'|'+String(i.en||'').toLowerCase().trim()}
+function tl(i){return i.tags||[]}
+function eqt(a,b){return a.toLowerCase()===b.toLowerCase()}
+function allTags(cid){var m={};items.forEach(function(i){if(cid==='all'||i.lang===cid)tl(i).forEach(function(t){var k=t.toLowerCase();if(!m[k])m[k]=t})});return Object.keys(m).sort().map(function(k){return m[k]})}
+function parseTags(s){var o=[],seen={};String(s||'').split(/[,;]/).forEach(function(t){t=t.trim();var k=t.toLowerCase();if(t&&!seen[k]){seen[k]=1;o.push(t)}});return o}
+function hasTag(i,tags){return tl(i).some(function(t){return tags.some(function(x){return eqt(x,t)})})}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t}return a}
+function speak(t,c){if(!window.speechSynthesis)return;speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(t);if(c)u.lang=c;speechSynthesis.speak(u)}
+function lookUrl(t,c){return 'https://translate.google.com/?sl='+(c||'auto')+'&tl=en&text='+encodeURIComponent(t)+'&op=translate'}
+function arm(b,label,fn){if(b.dataset.arm){fn();return}b.dataset.arm='1';var o=b.textContent;b.textContent=label;setTimeout(function(){b.dataset.arm='';b.textContent=o},3000)}
+function langSel(id,val,type){var s=h('select',{id:id});langs.forEach(function(l){if(type&&l.type!==type)return;var o=h('option',{value:l.id},[l.name]);if(l.id===val)o.selected=true;s.appendChild(o)});return s}
+function field(label,id,val,multi,rows){var el=multi?h('textarea',{id:id,rows:String(rows||3)}):h('input',{id:id,type:'text',autocomplete:'off'});el.setAttribute('dir','auto');el.value=val||'';return h('div',{},[h('label',{for:id},[label]),el])}
+function speakBtn(t,c){return window.speechSynthesis?h('button',{class:'sec',title:'Pronounce',onclick:function(){speak(t,c)}},['🔊']):null}
+function lname(id){var l=L(id);return l?l.name:'all collections'}
+document.addEventListener('focusin',function(e){var t=e.target;if((t.tagName==='INPUT'&&t.type==='text')||t.tagName==='TEXTAREA')lastEl=t});
+function insertChar(c){var t=lastEl;if(!t||!document.body.contains(t)){status('Tap a text box first, then a character.');return}var s=t.selectionStart||0,e=t.selectionEnd||0;t.value=t.value.slice(0,s)+c+t.value.slice(e);t.focus();t.selectionStart=t.selectionEnd=s+c.length;t.dispatchEvent(new Event('input',{bubbles:true}))}
+
+function drawTop(){
+ if(cur!=='all'&&!L(cur))cur='all';
+ var nav=$('#nav');nav.innerHTML='';
+ [['add','Add'],['review','Review'],['quiz','Quiz'],['tools','Tools'],['backup','Backup']].forEach(function(t){nav.appendChild(h('button',{class:tab===t[0]?'on':'',onclick:function(){tab=t[0];editing=null;if(tab==='quiz'){resetQuiz();seedSrc()}render()}},[t[1]]))});
+ var lb=$('#langs');lb.innerHTML='';
+ function chip(id,label,n){lb.appendChild(h('button',{class:cur===id?'on':'',onclick:function(){cur=id;tf=[];if(id!=='all')addLang=id;if(tab==='quiz'&&!Q.started)seedSrc();render()}},[label+' '+n]))}
+ chip('all','All',items.length);
+ langs.forEach(function(l){chip(l.id,l.name,items.filter(function(i){return i.lang===l.id}).length)});
+ if(hasLang())lb.appendChild(h('button',{class:showKeys?'on':'',onclick:function(){showKeys=!showKeys;drawTop()}},['⌨ Keys']));
+ var kp=$('#keys');kp.innerHTML='';kp.style.display=showKeys&&hasLang()?'flex':'none';
+ if(showKeys&&hasLang()){var l=L(cur!=='all'?cur:addLang)||langs[0],cs=Array.from(l.chars||'').filter(function(c){return c.trim()});
+  if(!cs.length)kp.appendChild(h('span',{class:'mut'},['No special characters set for '+l.name+'. Add some under Tools, Collections.']));
+  cs.forEach(function(c){var b=h('button',{class:'key'},[(/[\u0591-\u05C7\u064B-\u065F]/.test(c)?'\u25CC':'')+c]);b.addEventListener('mousedown',function(ev){ev.preventDefault()});b.addEventListener('click',function(){insertChar(c)});kp.appendChild(b)})}}
+function drawView(){var v=$('#view');v.innerHTML='';({add:viewAdd,review:viewReview,quiz:viewQuiz,tools:viewTools,backup:viewBackup})[tab](v)}
+function render(){drawTop();drawView()}
+
+function readForm(){var o={};['he','tr','en','nt','op','tg'].forEach(function(k){var x=$('#f_'+k);if(x)o[k]=x.value});return o}
+function viewAdd(v){
+ var e=editing?items.find(function(x){return x.id===editing}):null;
+ var lang=e?e.lang:(addLang&&L(addLang)?addLang:langs[0].id),gen=(L(lang)||{}).type==='general';
+ var d=e?{he:e.he,tr:e.tr,en:e.en,nt:e.nt,op:(e.opts||[]).join('\n'),tg:tl(e).join(', ')}:(draft||{});
+ var ls=langSel('f_lang',lang);ls.disabled=!!e;ls.addEventListener('change',function(){addLang=ls.value;draft=readForm();render()});
+ var ks=h('select',{id:'f_kind'},[h('option',{value:'vocab'},['Vocabulary']),h('option',{value:'grammar'},['Grammar'])]);ks.value=e&&e.kind==='grammar'?'grammar':'vocab';
+ var fields=gen?[field('Question','f_he',d.he,true,2),field('Correct answer (use / between accepted alternatives)','f_en',d.en),field('Wrong answers for multiple choice (optional, one per line)','f_op',d.op,true,3),field('Explanation (optional)','f_nt',d.nt,true,2)]
+  :[field('Word, phrase or grammar example','f_he',d.he),field('Transliteration / pronunciation (optional)','f_tr',d.tr),field('Meaning or rule name','f_en',d.en),field('Notes (optional)','f_nt',d.nt,true,3)];
+ var chips=h('div',{class:'seg',style:'margin:6px 0 0'});
+ allTags(lang).forEach(function(t){chips.appendChild(h('button',{onclick:function(){var inp=$('#f_tg'),a=parseTags(inp.value),k=a.findIndex(function(x){return eqt(x,t)});if(k<0)a.push(t);else a.splice(k,1);inp.value=a.join(', ')}},[t]))});
+ function submit(){var he=$('#f_he').value.trim(),en=$('#f_en').value.trim();if(!he||!en){status(gen?'Please fill in the question and the answer.':'Please fill in both the word and its meaning.');return}
+  var it=e||{id:uid(),added:Date.now(),right:0,wrong:0};
+  it.lang=ls.value;it.kind=gen?'general':ks.value;it.he=he;it.en=en;it.tr=gen?'':$('#f_tr').value.trim();it.nt=$('#f_nt').value.trim();
+  it.opts=gen?$('#f_op').value.split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean):[];it.tags=parseTags($('#f_tg').value);
+  addLang=it.lang;draft=e?null:{tg:it.tags.join(', ')};save(it);editing=null;status('Saved ✓');if(e)tab='review';render();var f=$('#f_he');if(f&&!e)f.focus()}
+ var top=[h('div',{style:'flex:1'},[h('label',{for:'f_lang'},[gen?'Deck':'Collection']),ls])];
+ if(!gen)top.push(h('div',{style:'flex:1'},[h('label',{for:'f_kind'},['Type']),ks]));
+ v.appendChild(h('div',{class:'card'},[h('div',{class:'row'},top)].concat(fields).concat([field('Tags (optional, comma separated, like Ch. 1)','f_tg',d.tg),chips,
+  h('div',{class:'row'},[h('button',{class:'pri',onclick:submit},[e?'Save changes':(gen?'Add question':'Add to notebook')]),e?h('button',{class:'sec',style:'margin-top:14px',onclick:function(){editing=null;render()}},['Cancel']):null])])))}
+
+var kf='all';
+function viewReview(v){
+ if(hasLang()){var seg=h('div',{class:'seg'});[['all','All types'],['vocab','Vocabulary'],['grammar','Grammar']].forEach(function(f){seg.appendChild(h('button',{class:kf===f[0]?'on':'',onclick:function(){kf=f[0];render()}},[f[1]]))});v.appendChild(seg)}
+ var tg=allTags(cur);
+ if(tg.length){var tr=h('div',{class:'seg'});tg.forEach(function(t){var on=tf.some(function(x){return eqt(x,t)});tr.appendChild(h('button',{class:on?'on':'',onclick:function(){var k=tf.findIndex(function(x){return eqt(x,t)});if(k<0)tf.push(t);else tf.splice(k,1);render()}},['#'+t]))});v.appendChild(tr)}
+ var q=h('input',{type:'text',placeholder:'Search…',style:'margin-bottom:12px'}),list=h('div');v.appendChild(q);v.appendChild(list);
+ function draw(){list.innerHTML='';var s=q.value.toLowerCase();
+  var xs=items.filter(function(i){return (cur==='all'||i.lang===cur)&&(kf==='all'||i.kind===kf)&&(!tf.length||hasTag(i,tf))&&(i.he+i.tr+i.en+i.nt+tl(i).join(' ')).toLowerCase().indexOf(s)>=0}).sort(function(a,b){return b.added-a.added});
+  if(!xs.length){list.appendChild(h('div',{class:'empty'},[items.length?'Nothing matches.':'Nothing here yet. Add your first entry!']));return}
+  xs.forEach(function(i){var l=L(i.lang)||{name:'?',code:''},tot=i.right+i.wrong,gen=isGen(i);
+   var left=h('div',{},[h('div',{class:gen?'pw':'big',style:gen?'font-weight:600':'',dir:'auto'},[i.he]),h('div',{dir:'auto'},[gen?'→ '+i.en:i.en]),
+    gen&&i.opts&&i.opts.length?h('div',{class:'mut',dir:'auto'},['Wrong options: '+i.opts.join(' | ')]):null,i.tr?h('div',{class:'mut',dir:'auto'},[i.tr]):null,i.nt?h('div',{class:'mut pw',dir:'auto'},[i.nt]):null]);
+   var right=h('div',{style:'text-align:right;min-width:100px'},[cur==='all'?h('span',{class:'tag'},[l.name]):null,gen?null:h('span',{class:'tag'},[i.kind])].concat(tl(i).map(function(t){return h('span',{class:'tag'},['#'+t])})).concat([h('div',{class:'mut'},[tot?i.right+'/'+tot+' correct':'not quizzed']),
+    h('div',{class:'row',style:'justify-content:flex-end;margin-top:6px'},[gen?null:speakBtn(i.he,l.code),gen?null:h('a',{class:'sec',href:lookUrl(i.he,l.code),target:'_blank',rel:'noopener'},['Look up']),
+     h('button',{class:'sec',onclick:function(){editing=i.id;tab='add';render();window.scrollTo(0,0)}},['Edit']),
+     h('button',{class:'sec',onclick:function(ev){arm(ev.currentTarget,'Delete?',function(){remove(i.id);render()})}},['✕'])])]));
+   list.appendChild(h('div',{class:'card item'},[left,right]))})}
+ q.addEventListener('input',draw);draw()}
+
+var Q={src:[{c:'all',t:[]}],kind:'all',dir:'tm',mode:'flash',limit:0,trouble:false,queue:[],cur:null,shown:false,ok:0,bad:0,started:false,d:'tm',m:'flash',ch:null,res:null,pick:null,typed:''};
+function resetQuiz(){Q.started=false;Q.cur=null;Q.ok=0;Q.bad=0}
+function seedSrc(){Q.src=[{c:cur,t:[]}]}
+function inSrc(i){return Q.src.some(function(s){return (s.c==='all'||i.lang===s.c)&&(!s.t.length||hasTag(i,s.t))})}
+function pool(){return items.filter(function(i){if(!inSrc(i))return false;if(!isGen(i)&&Q.kind!=='all'&&i.kind!==Q.kind)return false;if(Q.trouble&&!(i.wrong>i.right))return false;return true})}
+function ans(i,d){return d==='tm'?i.en:i.he}
+function choices(i,d){var A=ans(i,d),seen={},out=[];seen[nrm(A)]=1;
+ function add(t){var k=nrm(t);if(t&&!seen[k]&&out.length<3){seen[k]=1;out.push(t)}}
+ if(isGen(i))(i.opts||[]).forEach(add);
+ shuffle(items.filter(function(x){return x!==i&&x.lang===i.lang})).forEach(function(x){add(ans(x,d))});
+ shuffle(items.filter(function(x){return x!==i&&x.lang!==i.lang&&isGen(x)===isGen(i)})).forEach(function(x){add(ans(x,d))});
+ if(!out.length)return null;return shuffle(out.concat([A]))}
+function startQuiz(){Q.src=Q.src.filter(function(s){return s.c==='all'||L(s.c)});if(!Q.src.length)seedSrc();
+ var p=pool().map(function(i){var t=i.right+i.wrong;return{i:i,w:Math.random()+(t?i.wrong/t:.5)}}).sort(function(a,b){return b.w-a.w}).map(function(x){return x.i});
+ Q.queue=Q.limit?p.slice(0,Q.limit):p;Q.started=true;Q.ok=0;Q.bad=0;next()}
+function next(){Q.cur=Q.queue.shift()||null;Q.shown=false;Q.res=null;Q.pick=null;Q.typed='';Q.ch=null;if(!Q.cur)return;var i=Q.cur;
+ Q.d=isGen(i)?'tm':(Q.dir==='mix'?(Math.random()<.5?'tm':'mt'):Q.dir);
+ var m=Q.mode==='mix'?['flash','mc','type'][Math.floor(Math.random()*3)]:Q.mode;
+ if(m==='mc'){Q.ch=choices(i,Q.d);if(!Q.ch)m='flash'}Q.m=m}
+function drill(n){seedSrc();Q.kind='all';Q.trouble=false;Q.limit=n;if(!pool().length){status('Add some entries first.');return}tab='quiz';startQuiz();render()}
+function record(ok){var i=Q.cur;if(ok){i.right++;Q.ok++}else{i.wrong++;Q.bad++;Q.queue.push(i)}save(i)}
+function override(){var i=Q.cur;i.wrong=Math.max(0,i.wrong-1);i.right++;Q.bad--;Q.ok++;var k=Q.queue.lastIndexOf(i);if(k>=0)Q.queue.splice(k,1);Q.res='ok';save(i);render()}
+function segOf(opts,val,set){var s=h('div',{class:'seg'});opts.forEach(function(o){s.appendChild(h('button',{class:val===o[0]?'on':'',onclick:function(){set(o[0]);render()}},[o[1]]))});return s}
+function srcRow(s,idx){
+ var sel=h('select',{},[h('option',{value:'all'},['Everything'])].concat(langs.map(function(l){return h('option',{value:l.id},[l.name])})));sel.value=s.c;
+ sel.addEventListener('change',function(){s.c=sel.value;s.t=[];render()});
+ var tags=allTags(s.c),chips=h('div',{class:'seg',style:'margin:8px 0 0'});
+ if(!tags.length)chips.appendChild(h('span',{class:'mut'},['No tags here yet. Add tags like Ch. 1 when you add entries.']));
+ tags.forEach(function(t){var on=s.t.some(function(x){return eqt(x,t)});chips.appendChild(h('button',{class:on?'on':'',onclick:function(){var k=s.t.findIndex(function(x){return eqt(x,t)});if(k<0)s.t.push(t);else s.t.splice(k,1);render()}},['#'+t]))});
+ return h('div',{style:'padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px'},[h('div',{class:'row'},[h('div',{style:'flex:1'},[sel]),Q.src.length>1?h('button',{class:'sec',onclick:function(){Q.src.splice(idx,1);render()}},['Remove']):null]),chips,
+  s.t.length?null:h('div',{class:'mut',style:'margin-top:6px'},['No tags picked = every entry from this source.'])])}
+function viewQuiz(v){
+ if(!Q.started){var c=h('div',{class:'card'});
+  c.appendChild(h('label',{},['Sources (add one per collection or chapter to mix them)']));
+  Q.src.forEach(function(s,i){c.appendChild(srcRow(s,i))});
+  c.appendChild(h('button',{class:'sec',onclick:function(){Q.src.push({c:'all',t:[]});render()}},['+ Add another source']));
+  if(langs.some(function(l){return l.type!=='general'})){
+   c.appendChild(h('label',{},['Language entries']));c.appendChild(segOf([['all','Everything'],['vocab','Vocabulary only'],['grammar','Grammar only']],Q.kind,function(x){Q.kind=x}));
+   c.appendChild(h('label',{},['Direction (language entries)']));c.appendChild(segOf([['tm','Word → meaning'],['mt','Meaning → word'],['mix','Mixed']],Q.dir,function(x){Q.dir=x}))}
+  c.appendChild(h('label',{},['Quiz mode']));c.appendChild(segOf([['flash','Flashcards'],['mc','Multiple choice'],['type','Type the answer'],['mix','Mixed']],Q.mode,function(x){Q.mode=x}));
+  c.appendChild(h('label',{},['How many cards']));c.appendChild(segOf([['0','All'],['5','5'],['10','10'],['20','20'],['50','50']],String(Q.limit),function(x){Q.limit=+x}));
+  c.appendChild(h('label',{},['Which cards']));c.appendChild(segOf([['0','All'],['1','Trouble spots only']],Q.trouble?'1':'0',function(x){Q.trouble=x==='1'}));
+  var n=pool().length;c.appendChild(h('p',{class:'mut'},[n?n+' cards match. The ones you miss most come up first.':'No entries match these sources.']));
+  var b=h('button',{class:'pri',onclick:function(){startQuiz();render()}},['Start quiz']);if(!n)b.disabled=true;c.appendChild(b);v.appendChild(c);return}
+ if(!Q.cur){var t=Q.ok+Q.bad;v.appendChild(h('div',{class:'card q'},[h('div',{class:'big'},['🎉']),h('h2',{},['Round complete']),h('div',{},[t?Q.ok+' of '+t+' answered correctly first time or after retries ('+Math.round(100*Q.ok/t)+'%)':'']),
+  h('div',{class:'row',style:'justify-content:center'},[h('button',{class:'pri',onclick:function(){startQuiz();render()}},['Go again']),h('button',{class:'sec',style:'margin-top:14px',onclick:function(){resetQuiz();render()}},['Change settings'])])]));return}
+ var i=Q.cur,l=L(i.lang)||{name:'?',code:''},gen=isGen(i),tm=Q.d==='tm',P=tm?i.he:i.en,A=tm?i.en:i.he,m=Q.m;
+ var pc=function(t){return h('div',{class:'big pw',dir:'auto'},[t])};
+ var card=h('div',{class:'card q'},[h('span',{class:'tag'},[l.name]),gen?null:h('span',{class:'tag'},[i.kind])].concat(tl(i).map(function(t){return h('span',{class:'tag'},['#'+t])})).concat([pc(P)]));
+ if(!gen&&tm){if(i.tr)card.appendChild(h('div',{class:'mut'},['('+i.tr+')']));ap(card,speakBtn(i.he,l.code))}
+ function extra(box){if(!gen&&!tm){if(i.tr)box.appendChild(h('div',{class:'mut'},[i.tr]));ap(box,speakBtn(i.he,l.code))}if(i.nt)box.appendChild(h('div',{class:'mut pw',dir:'auto',style:'margin-top:6px'},[i.nt]))}
+ function after(){var a=h('div',{class:'ans'},[h('div',{style:'font-weight:600;color:var(--'+(Q.res==='ok'?'ok':'bad')+')'},[Q.res==='ok'?'Correct ✓':'Not quite'])]);
+  if(Q.res==='bad'){if(m==='type'&&Q.typed)a.appendChild(h('div',{class:'mut',dir:'auto'},['You typed: '+Q.typed]));a.appendChild(h('div',{class:'mut'},['Answer:']));a.appendChild(pc(A))}
+  extra(a);var r=h('div',{class:'row',style:'justify-content:center;margin-top:14px'});
+  if(Q.res==='bad'&&m==='type')r.appendChild(h('button',{class:'sec',style:'margin-top:14px',onclick:override},['I was right']));
+  r.appendChild(h('button',{class:'pri',onclick:function(){next();render()}},['Next →']));a.appendChild(r);card.appendChild(a)}
+ if(m==='flash'){
+  if(!Q.shown)card.appendChild(h('div',{},[h('button',{class:'pri',onclick:function(){Q.shown=true;render()}},['Show answer'])]));
+  else{var a=h('div',{class:'ans'},[pc(A)]);extra(a);a.appendChild(h('div',{class:'row',style:'justify-content:center;margin-top:14px'},[h('button',{class:'pri bad',onclick:function(){record(false);next();render()}},['Missed it']),h('button',{class:'pri ok',onclick:function(){record(true);next();render()}},['Got it'])]));card.appendChild(a)}}
+ else if(m==='mc'){var box=h('div',{style:'margin-top:12px'});
+  Q.ch.forEach(function(ct){var cls='choice';if(Q.res){if(ct===A)cls+=' ok';else if(ct===Q.pick)cls+=' bad'}
+   box.appendChild(h('button',{class:cls,dir:'auto',onclick:function(){if(Q.res)return;Q.pick=ct;var ok=ct===A;record(ok);Q.res=ok?'ok':'bad';render()}},[ct]))});
+  card.appendChild(box);if(Q.res)after()}
+ else{if(!Q.res){var inp=h('input',{type:'text',dir:'auto',placeholder:'Type your answer',autocomplete:'off',style:'margin-top:12px;text-align:center'});
+   var check=function(){var t=inp.value;Q.typed=t;var acc=[A].concat(A.split(/\s*[\/|]\s*/)).map(nrm),ok=!!nrm(t)&&acc.indexOf(nrm(t))>=0;record(ok);Q.res=ok?'ok':'bad';render()};
+   inp.addEventListener('keydown',function(ev){if(ev.key==='Enter')check()});card.appendChild(inp);card.appendChild(h('div',{},[h('button',{class:'pri',onclick:check},['Check'])]));setTimeout(function(){inp.focus()},0)}
+  else after()}
+ v.appendChild(card);
+ v.appendChild(h('div',{class:'stat mut'},[h('span',{},['✓ '+Q.ok]),h('span',{},['✗ '+Q.bad]),h('span',{},[Q.queue.length+' left'])]));
+ v.appendChild(h('div',{style:'text-align:center'},[h('button',{class:'sec',onclick:function(){resetQuiz();render()}},['End quiz'])]))}
+
+function viewTools(v){
+ var ql=langSel('q_lang',cur!=='all'?cur:(addLang&&L(addLang)?addLang:langs[0].id)),qt=h('textarea',{id:'q_txt',rows:'5',placeholder:'One per line, like:\nshalom = hello\nCapital of France = Paris'}),qg=h('input',{type:'text',placeholder:'Tags for all of these (optional), e.g. Ch. 2'});qt.setAttribute('dir','auto');
+ v.appendChild(h('div',{class:'card'},[h('h3',{},['Quick add (many at once)']),h('p',{class:'mut',style:'margin:0'},['Type lines as word = meaning, or question = answer. A dash, semicolon or tab also works.']),h('label',{for:'q_lang'},['Add to']),ql,qt,qg,
+  h('button',{class:'pri',onclick:function(){var n=0,sk=0,dup=0,idx={},tg=parseTags(qg.value),gen=(L(ql.value)||{}).type==='general';items.forEach(function(i){idx[key(i)]=1});
+   qt.value.split(/\r?\n/).forEach(function(line){line=line.trim();if(!line)return;var m=line.match(/^(.+?)\s*(?:=|\t|;|\s[-–—]\s)\s*(.+)$/);if(!m){sk++;return}
+    var it={id:uid(),lang:ql.value,kind:gen?'general':'vocab',he:m[1].trim(),tr:'',en:m[2].trim(),nt:'',tags:tg.slice(),opts:[],added:Date.now(),right:0,wrong:0};if(idx[key(it)]){dup++;return}idx[key(it)]=1;items.push(it);n++});
+   if(n)lsSave();qt.value='';status('Added '+n+(dup?', '+dup+' duplicates skipped':'')+(sk?', '+sk+' lines not understood':'')+'.');render()}},['Add all'])]));
+ if(hasLang()){var tl2=langSel('t_lang',cur!=='all'&&(L(cur)||{}).type!=='general'?cur:(langs.find(function(l){return l.type!=='general'})||{}).id,'language'),ti=h('input',{id:'t_txt',type:'text',placeholder:'Type any word or phrase'});ti.setAttribute('dir','auto');
+  var lg=function(){return L(tl2.value)||{code:''}};
+  v.appendChild(h('div',{class:'card'},[h('h3',{},['Pronounce and look up']),h('label',{for:'t_lang'},['Language']),tl2,ti,
+   h('div',{class:'row',style:'margin-top:10px'},[h('button',{class:'sec',onclick:function(){if(ti.value.trim())speak(ti.value,lg().code)}},['🔊 Speak']),
+    h('button',{class:'sec',onclick:function(){if(ti.value.trim())window.open(lookUrl(ti.value.trim(),lg().code),'_blank','noopener')}},['Google Translate']),
+    h('button',{class:'sec',onclick:function(){if(ti.value.trim())window.open('https://en.wiktionary.org/wiki/'+encodeURIComponent(ti.value.trim()),'_blank','noopener')}},['Wiktionary'])])]))}
+ v.appendChild(h('div',{class:'card'},[h('h3',{},['Quick drill']),h('p',{class:'mut',style:'margin:0 0 8px'},['Your hardest cards first, from '+lname(cur)+'. Uses your current quiz mode.']),
+  h('div',{class:'row'},[5,10,20].map(function(n){return h('button',{class:'sec',onclick:function(){drill(n)}},[n+' cards'])}))]));
+ var rows=langs.map(function(l){var xs=items.filter(function(i){return i.lang===l.id}),r=0,w=0;xs.forEach(function(i){r+=i.right;w+=i.wrong});
+  return h('tr',{},[h('td',{},[l.name]),h('td',{},[String(xs.length)]),h('td',{},[r+w?Math.round(100*r/(r+w))+'%':'–']),h('td',{},[String(xs.filter(function(i){return i.wrong>i.right}).length)])])});
+ v.appendChild(h('div',{class:'card'},[h('h3',{},['Stats']),h('table',{},[h('tr',{},['Collection','Entries','Accuracy','Trouble spots'].map(function(x){return h('th',{},[x])}))].concat(rows))]));
+ var lc=h('div',{class:'card'},[h('h3',{},['Collections']),h('p',{class:'mut',style:'margin:0'},['For languages, the code (like es or he) sets the pronunciation voice and the characters fill the ⌨ Keys panel.'])]);
+ langs.forEach(function(l){var g=l.type==='general';function inp(f,ph){var e=h('input',{type:'text',value:l[f]||'',placeholder:ph,'aria-label':ph});e.addEventListener('change',function(){l[f]=e.value.trim()||(f==='name'?l.name:'');lsSave();drawTop()});return e}
+  lc.appendChild(h('div',{style:'padding:10px 0;border-top:1px solid var(--line)'},[h('div',{class:'row'},[h('div',{style:'flex:2'},[inp('name','Name')]),g?h('span',{class:'tag'},['general deck']):h('div',{style:'flex:1'},[inp('code','Code')]),
+   h('button',{class:'sec',onclick:function(ev){if(langs.length<2){status('Keep at least one collection.');return}var n=items.filter(function(i){return i.lang===l.id}).length;
+    arm(ev.currentTarget,'Delete '+n+' entries?',function(){items=items.filter(function(i){return i.lang!==l.id});langs=langs.filter(function(x){return x!==l});lsSave();render()})}},['Delete'])]),
+   g?null:h('div',{style:'margin-top:6px'},[inp('chars','Special characters')])]))});
+ var ps=h('select',{});PRE.forEach(function(p,i){ps.appendChild(h('option',{value:String(i)},[p[0]]))});ps.appendChild(h('option',{value:'x'},['Other (type a name)']));
+ var ts=h('select',{},[h('option',{value:'language'},['Language']),h('option',{value:'general'},['General deck'])]);
+ var pn=h('input',{type:'text',placeholder:'Name (needed for Other and for general decks)'}),pc2=h('input',{type:'text',placeholder:'Language code, e.g. nl (optional)'});
+ var form=[h('label',{},['Add a collection'])];
+ if(CFG.mode==='both')form.push(ts);
+ if(CFG.mode!=='general')form.push(ps);
+ form=form.concat([pn]);if(CFG.mode!=='general')form.push(pc2);
+ form.push(h('button',{class:'pri',onclick:function(){
+  var type=CFG.mode==='general'?'general':CFG.mode==='lang'?'language':ts.value,p=type==='language'?PRE[+ps.value]:null,name=pn.value.trim()||(p?p[0]:'');if(!name){status('Type a name.');return}
+  if(langs.some(function(l){return l.name.toLowerCase()===name.toLowerCase()})){status('You already have that one.');return}
+  var nl=mkColl(name,type,type==='language'?(pc2.value.trim()||(p&&!pn.value.trim()?p[1]:'')):'',p?p[2]:'');langs.push(nl);cur=nl.id;addLang=nl.id;lsSave();render()}},['Add collection']));
+ lc.appendChild(h('div',{style:'border-top:1px solid var(--line);padding-top:10px'},form));v.appendChild(lc)}
+
+function dlFile(name,text){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}
+function stamp(){return new Date().toISOString().slice(0,10)}
+function csvEsc(s){s=String(s==null?'':s);return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
+function toCSV(){var rows=[['collection','kind','term','transliteration','meaning','notes','right','wrong','tags','options']];items.forEach(function(i){rows.push([lname(i.lang),i.kind,i.he,i.tr,i.en,i.nt,i.right,i.wrong,tl(i).join('; '),(i.opts||[]).join(' | ')])});return '\ufeff'+rows.map(function(r){return r.map(csvEsc).join(',')}).join('\r\n')}
+function toJSON(){return JSON.stringify({app:'study-notebook',version:3,exported:new Date().toISOString(),langs:langs,items:items},null,2)}
+function parseCSV(t){var rows=[],row=[],f='',q=false,i=0;t=t.replace(/^\ufeff/,'');
+ for(;i<t.length;i++){var c=t[i];
+  if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+  else if(c==='"')q=true;else if(c===','){row.push(f);f=''}
+  else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(f);f='';rows.push(row);row=[]}
+  else f+=c}
+ if(f!==''||row.length){row.push(f);rows.push(row)}
+ return rows.filter(function(r){return r.some(function(x){return x.trim()})})}
+function parseAny(t){t=t.trim();if(!t)return null;
+ if(t[0]==='['||t[0]==='{'){var d=JSON.parse(t);return Array.isArray(d)?{langs:[],items:d}:{langs:d.langs||[],items:d.items||[]}}
+ var its=[];parseCSV(t).forEach(function(r){var c0=(r[0]||'').trim().toLowerCase();if(c0==='language'||c0==='kind'||c0==='collection')return;
+  if(r.length>=10)its.push({langName:r[0],kind:r[1],he:r[2],tr:r[3],en:r[4],nt:r[5],right:r[6],wrong:r[7],tags:parseTags(r[8]),opts:String(r[9]||'').split('|').map(function(x){return x.trim()}).filter(Boolean)});
+  else if(r.length>=8)its.push({langName:r[0],kind:r[1],he:r[2],tr:r[3],en:r[4],nt:r[5],right:r[6],wrong:r[7]});
+  else its.push({kind:r[0],he:r[1],tr:r[2],en:r[3],nt:r[4],right:r[5],wrong:r[6]})});
+ return{langs:[],items:its}}
+function importData(d,def){var map={},a=0,u=0,s=0,nl=0,idx={};
+ d.langs.forEach(function(l){var m=langs.find(function(x){return x.id===l.id||x.name.toLowerCase()===String(l.name||'').toLowerCase()});if(!m){m=mkColl(l.name||'Collection',l.type,l.code,l.chars);langs.push(m);nl++}map[l.id]=m.id});
+ items.forEach(function(i){idx[key(i)]=i});
+ d.items.forEach(function(n){if(!n||!n.he||!n.en){s++;return}var lg;
+  if(n.langName&&n.langName.trim()){lg=langs.find(function(x){return x.name.toLowerCase()===n.langName.trim().toLowerCase()});if(!lg){lg=mkColl(n.langName.trim(),n.kind==='general'?'general':'language');langs.push(lg);nl++}lg=lg.id}
+  else lg=map[n.lang]||(L(n.lang)?n.lang:def);
+  var c={lang:lg,kind:n.kind==='grammar'?'grammar':(n.kind==='general'?'general':'vocab'),he:String(n.he).trim(),tr:n.tr||'',en:String(n.en).trim(),nt:n.nt||'',tags:parseTags((n.tags||[]).join(',')),opts:n.opts||[],added:+n.added||Date.now(),right:+n.right||0,wrong:+n.wrong||0},k=key(c),o=idx[k];
+  if(!o){c.id=uid();items.push(c);idx[k]=c;a++;return}
+  var ch=false;if(!o.tr&&c.tr){o.tr=c.tr;ch=true}
+  if(!o.nt&&c.nt){o.nt=c.nt;ch=true}else if(c.nt&&o.nt!==c.nt&&o.nt.indexOf(c.nt)<0){o.nt+=' | '+c.nt;ch=true}
+  var ot=tl(o).slice();c.tags.forEach(function(t){if(!ot.some(function(x){return eqt(x,t)})){ot.push(t);ch=true}});o.tags=ot;
+  if(!(o.opts&&o.opts.length)&&c.opts.length){o.opts=c.opts;ch=true}
+  var r=Math.max(o.right,c.right),w=Math.max(o.wrong,c.wrong);if(r!==o.right||w!==o.wrong){o.right=r;o.wrong=w;ch=true}
+  if(ch)u++;else s++});
+ lsSave();return{a:a,u:u,s:s,nl:nl}}
+function viewBackup(v){
+ var out=h('textarea',{rows:'4',readonly:'readonly',style:'margin-top:10px;display:none'});
+ function exp(name,text){if(!items.length){status('Nothing to export yet.');return}try{dlFile(name,text);status('Export saved ✓')}catch(e){out.value=text;out.style.display='block';out.select();status('Download blocked. Copy the text below.')}}
+ v.appendChild(h('div',{class:'card'},[h('h3',{},['Export (everything)']),h('p',{class:'mut',style:'margin:0 0 10px'},['A JSON backup, or a CSV for Excel or Google Sheets.']),
+  h('div',{class:'row'},[h('button',{class:'sec',onclick:function(){exp('notebook-'+stamp()+'.json',toJSON())}},['Download JSON backup']),h('button',{class:'sec',onclick:function(){exp('notebook-'+stamp()+'.csv',toCSV())}},['Download CSV'])]),out]));
+ var ta=h('textarea',{rows:'6',placeholder:'Paste JSON or CSV here, or choose a file…',style:'margin-top:10px'}),fi=h('input',{type:'file',accept:'.json,.csv,.txt'}),dl=langSel('m_lang',cur!=='all'?cur:langs[0].id);
+ fi.addEventListener('change',function(){var f=fi.files&&fi.files[0];if(!f)return;var r=new FileReader();r.onload=function(){ta.value=String(r.result);status('File loaded. Review it, then press Merge.')};r.readAsText(f)});
+ v.appendChild(h('div',{class:'card'},[h('h3',{},['Import and merge']),h('p',{class:'mut',style:'margin:0 0 10px'},['Combines a backup with what is here. Matches (same collection, word and meaning) keep your entry, fill blanks, add tags and keep the higher quiz scores; new ones are added. Nothing is deleted. Backups from older versions without a collection go into the one chosen below.']),
+  fi,h('label',{for:'m_lang'},['Entries without a collection go into']),dl,ta,
+  h('button',{class:'pri',onclick:function(){try{var d=parseAny(ta.value);if(!d||!d.items.length){status('Nothing to import.');return}var r=importData(d,dl.value);ta.value='';status('Merged: '+r.a+' added, '+r.u+' updated, '+r.s+' unchanged or skipped'+(r.nl?', '+r.nl+' new collections':'')+'.');setTimeout(render,0)}catch(e){status('Could not read that. Check it is a JSON backup or CSV.')}}},['Merge into notebook'])]));
+ v.appendChild(gitCard())}
+function refreshAfterSync(){fixTypes();drawTop();if(tab==='review'||(tab==='quiz'&&!Q.started))drawView()}
+function init(){lsLoad();render();gInit()}
+init();
+})();
+</script></body></html>
